@@ -67,6 +67,10 @@ def book_cover(isbn):
     response.raise_for_status()
     return response
 
+@app.route('/')
+def index():
+    return 'go to /goodreads/USERID'
+
 @app.route('/goodreads/<int:user_id>')
 def dashboard(user_id):
 	return render_template("dashboard.html", user_id=user_id)
