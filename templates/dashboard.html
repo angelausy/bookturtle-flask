@@ -14,32 +14,15 @@
       <div class="large-12 columns">
         <h1>Welcome to BookTurtle!</h1>
         <div id="table" class="row">
-<!--           <div class="column small-4">
-            <img class="cover" src="/cover/9780816691265" />
-            <h4>Reading Writing Interfaces: From the Digital to the Bookbound</h4>
-            <ul class="button-group">
-              <li><a href="#" class="button">Finish</a></li>
-              <li><a href="#" class="button">Dismiss</a></li>
-            </ul>
-          </div>
-          <div class="column small-4">
-            <img class="cover" src="/cover/9781452117201" />
-            <h4>The Thing The Book: A Monument to the Book as Object</h4>
-            <ul class="button-group">
-              <li><a href="#" class="button">Finish</a></li>
-              <li><a href="#" class="button">Dismiss</a></li>
-            </ul>
-          </div>
-          <div class="column small-4">
-            <img class="cover" src="/cover/9781579655518" />
-            <h4>The Plant Recipe Book: 100 Living Arrangements for Any Home in Any Season</h4>
-            <ul class="button-group">
-              <li><a href="#" class="button">Finish</a></li>
-              <li><a href="#" class="button">Dismiss</a></li>
-            </ul>
-          </div> -->
         </div>
       </div>
+    </div>
+
+    <div id="nextModal" class="reveal-modal" data-reveal aria-labelledby="modalTitle" aria-hidden="true" role="dialog">
+      <h2 id="modalTitle">What do you want to read next?</h2>
+      <div class="row">
+      </div>
+      <a class="close-reveal-modal" aria-label="Close">&#215;</a>
     </div>
     
     <script src="/static/js/vendor/jquery.js"></script>
@@ -49,13 +32,34 @@
 
 
     <script type="text/html" id="tableBookTemplate">
-      <div data-id=reviewID class="column small-4">
+      <div data-id=reviewID class="table-book column small-4">
         <img class="cover" data-src="imgSrc" />
-        <h4 data-content-text=title></h4>
+        <div class="percent">
+          <div data-template-bind='{"attribute": "data-slider", "value": "percent"}' class="range-slider round" data-slider data-options="start: 1; end: 100;">
+            <span class="range-slider-handle" role="slider" tabindex="0"></span>
+            <span class="range-slider-active-segment"></span>
+            <input type="hidden">
+          </div>
+        </div>
         <ul class="button-group">
-          <li><a href="#" class="button">Finish</a></li>
-          <li><a href="#" class="button">Dismiss</a></li>
+          <li><a class="nope-button button">Nope</a></li>
+          <li><a class="done-button button">Done!</a></li>
         </ul>
+      </div>
+    </script>
+
+    <script type="text/html" id="nextBookTemplate">
+      <div data-id=reviewID class="next-book column small-4">
+        <img class="cover" data-src="imgSrc" />
+        <h4 data-content=title></h4>
+      </div>
+    </script>
+
+    <script type="text/html" id="placeholderTemplate">
+      <div id="placeholder-book" class="column small-4">
+        <div class="cover">
+          <a class="placeholder-cover" data-reveal-id="nextModal">+</>
+        </div>
       </div>
     </script>
 
@@ -78,19 +82,15 @@
         dataType: 'xml'
       });
 
-      var showReview = function (reviewID) {
+      var refreshPercent = function (reviewID) {
         $.ajax({
           url: '/review/' + reviewID,
-          success: function (response) { return parsePercent(response); },
+          success: function (response) { return updatePercent(response); },
           dataType: 'xml'
         });
       };
 
-      var parsePercent = function (response) {
-        var json = xml2json(response.children[0].children[1]);
-        json = json.replace('undefined', '');
-        var review = JSON.parse(json).review;
-
+      var parsePercent = function (review) {
         if (!review.user_statuses) {
           return 0;
         }
@@ -102,11 +102,17 @@
         }
       };
 
-      var updatePercent = function (reviewID) {
-        
+      var updatePercent = function (response) {
+        var json = xml2json(response.children[0].children[1]);
+        json = json.replace('undefined', '');
+        var review = JSON.parse(json).review;
+
+        var $slider = $('#r' + review.id + ' .percent .range-slider');
+        var percent = parsePercent(review);
+        $slider.foundation('slider', 'set_value', percent);
       };
 
-      var getBookData = function (review) {
+      var getBookData = function (review, i) {
         return {
           reviewID: 'r' + review.id,
           title: review.book.title,
@@ -126,17 +132,22 @@
       var getCurrentBooks = function (response) {
         var reviews = parseReviews(response);
         var $table = $('#table');
+        var $template = $('#tableBookTemplate');
+        $(document).foundation('slider', 'reflow');
 
         $.each(reviews, function (i, review) { 
           if (i < 3) {
-            var book = getBookData(review)
+            var book = getBookData(review, i)
             table.push(book);
-            $table.loadTemplate($('#tableBookTemplate'), book, {append: true});
+            $table.loadTemplate($template, book, {append: true});
+            refreshPercent(review.id);
+            $(document).foundation('slider', 'reflow');
           }
           else {
-            currentBooks.push(getBookData(review));
+            currentBooks.push(getBookData(review, i));
           }
         });
+        $('.nope-button').click(nopeClick);
       };
 
       var getNextBooks = function (response) {
@@ -145,6 +156,28 @@
           nextBooks.push(getBookData(review));
         });
       };
+
+      function nopeClick(event) {
+        $(event.currentTarget).closest('.table-book').remove();
+
+        if ($('#placeholder-book').length === 0) {
+          setTimeout(
+            function () { 
+              $('#table').loadTemplate($('#placeholderTemplate'), {}, {append: true});
+              $('.placeholder-cover').click(onModalTrigger);
+            }, 500);
+        }
+      }
+
+      function onModalTrigger() {
+        var $parent = $('#nextModal .row');
+        var $template = $('#nextBookTemplate');
+        if ($parent.children().length === 0) {
+          $.each(currentBooks.slice(0, 3), function (i, book) {
+            $parent.loadTemplate($template, book, {append: true });
+          });          
+        }
+      }
 
     </script>
   </body>
