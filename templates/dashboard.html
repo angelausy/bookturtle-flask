@@ -1,0 +1,151 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BookTurtle</title>
+    <link rel="stylesheet" href="/static/css/foundation.css" />
+    <link rel="stylesheet" href="/static/css/custom.css" />
+    <script src="/static/js/vendor/modernizr.js"></script>
+  </head>
+  <body>
+    
+    <div class="row">
+      <div class="large-12 columns">
+        <h1>Welcome to BookTurtle!</h1>
+        <div id="table" class="row">
+<!--           <div class="column small-4">
+            <img class="cover" src="/cover/9780816691265" />
+            <h4>Reading Writing Interfaces: From the Digital to the Bookbound</h4>
+            <ul class="button-group">
+              <li><a href="#" class="button">Finish</a></li>
+              <li><a href="#" class="button">Dismiss</a></li>
+            </ul>
+          </div>
+          <div class="column small-4">
+            <img class="cover" src="/cover/9781452117201" />
+            <h4>The Thing The Book: A Monument to the Book as Object</h4>
+            <ul class="button-group">
+              <li><a href="#" class="button">Finish</a></li>
+              <li><a href="#" class="button">Dismiss</a></li>
+            </ul>
+          </div>
+          <div class="column small-4">
+            <img class="cover" src="/cover/9781579655518" />
+            <h4>The Plant Recipe Book: 100 Living Arrangements for Any Home in Any Season</h4>
+            <ul class="button-group">
+              <li><a href="#" class="button">Finish</a></li>
+              <li><a href="#" class="button">Dismiss</a></li>
+            </ul>
+          </div> -->
+        </div>
+      </div>
+    </div>
+    
+    <script src="/static/js/vendor/jquery.js"></script>
+    <script src="/static/js/foundation.min.js"></script>
+    <script src="/static/js/vendor/xml2json.js"></script>
+    <script src="/static/js/vendor/jquery.loadTemplate-1.4.5.min.js"></script>
+
+
+    <script type="text/html" id="tableBookTemplate">
+      <div data-id=reviewID class="column small-4">
+        <img class="cover" data-src="imgSrc" />
+        <h4 data-content-text=title></h4>
+        <ul class="button-group">
+          <li><a href="#" class="button">Finish</a></li>
+          <li><a href="#" class="button">Dismiss</a></li>
+        </ul>
+      </div>
+    </script>
+
+    <script>
+      $(document).foundation();
+
+      var table = [];
+      var currentBooks = [];
+      var nextBooks = [];
+
+      $.ajax({
+        url: '/currently-reading/' + {{ user_id }},
+        success: function (response) { return getCurrentBooks(response); },
+        dataType: 'xml'
+      });
+
+      $.ajax({
+        url: '/to-read/' + {{ user_id }},
+        success: function (response) { return getNextBooks(response); },
+        dataType: 'xml'
+      });
+
+      var showReview = function (reviewID) {
+        $.ajax({
+          url: '/review/' + reviewID,
+          success: function (response) { return parsePercent(response); },
+          dataType: 'xml'
+        });
+      };
+
+      var parsePercent = function (response) {
+        var json = xml2json(response.children[0].children[1]);
+        json = json.replace('undefined', '');
+        var review = JSON.parse(json).review;
+
+        if (!review.user_statuses) {
+          return 0;
+        }
+        else if (review.user_statuses.user_status.length) {
+          return parseInt(review.user_statuses.user_status[0].percent['#text'], 10);
+        }
+        else {
+          return parseInt(review.user_statuses.user_status.percent['#text'], 10);
+        }
+      };
+
+      var updatePercent = function (reviewID) {
+        
+      };
+
+      var getBookData = function (review) {
+        return {
+          reviewID: 'r' + review.id,
+          title: review.book.title,
+          author: review.book.authors.author.name,
+          imgSrc: '/cover/' + review.book.isbn13,
+          link: review.book.link,
+          percent: 0
+        };
+      };
+
+      var parseReviews = function (response) {
+        var json = xml2json(response.children[0].children[1]);
+        json = json.replace('undefined', '');
+        return JSON.parse(json).reviews.review;
+      };
+
+      var getCurrentBooks = function (response) {
+        var reviews = parseReviews(response);
+        var $table = $('#table');
+
+        $.each(reviews, function (i, review) { 
+          if (i < 3) {
+            var book = getBookData(review)
+            table.push(book);
+            $table.loadTemplate($('#tableBookTemplate'), book, {append: true});
+          }
+          else {
+            currentBooks.push(getBookData(review));
+          }
+        });
+      };
+
+      var getNextBooks = function (response) {
+        var reviews = parseReviews(response);
+        $.each(reviews, function (i, review) { 
+          nextBooks.push(getBookData(review));
+        });
+      };
+
+    </script>
+  </body>
+</html>
